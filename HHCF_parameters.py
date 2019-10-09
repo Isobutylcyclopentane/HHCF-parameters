@@ -1,11 +1,25 @@
-'''
-AFM parameter extraction program
-'''
+"""
+# This is a small project for helping the Physics Department at school to analyze
+# the surface of certain super-lattice in a more effortless fashion. It takes the
+# Height-height correlation function data from an AFM observation as a .txt file,
+# and extract the three crucial parameters for a self-affined surface, the RMS
+# roughness, the lateral roughness and the local roughness.
+
+# This requires the processed image data from Gwyddion.
+# This program requires external libraries: numpy, scipy and matplotlib
+
+# THIS PROGRAM IS NOT FULLY OPTIMIZED AT ALL, and will be continuously updated
+
+It contains 12 helper functions and 1 main function;
+
+Author: J. Jerry Cheng
+PHYS-2941, AFM Images, Dr. G-C. Wang, Dr. Y. Xiang
+"""
 from matplotlib import pyplot as plt
 from scipy import optimize as opt
+import numpy as np
 
 import math
-import numpy as np
 import statistics
 import os
 import glob
@@ -13,6 +27,10 @@ import ntpath
 
 
 def read_file (file_name):
+    # phrase the .txt data file from Gwyddion
+    # 1in: str; 3out: list, list, list
+    # outputs are x-axis data, y-axis data,
+    # and the dot array, respectively
 
     result_x = []
     result_y = []
@@ -44,11 +62,12 @@ def read_file (file_name):
 
 
 def find_saturation(quadrum):
-
+    # find the saturation of the input data
+    # 1in: list; 1out: tuple;
+    # return the average value and the stdev of the result
     temp_y = []
     temp = []
     auto_range = round(len(quadrum) / 10)
-    #print("DEBUG auto_range",auto_range)
     for i in range(auto_range):
         tmp_val = quadrum[-(i+1)]
         temp_y.append(tmp_val[1])
@@ -71,29 +90,9 @@ def find_saturation(quadrum):
     result = (avg,stdv)
     return result
 
-
-def get_first_derivative(data):
-    result = []
-    for i in range(1,len(data)):
-        dx = data[i][0] - data[i-1][0]
-        dy = data[i][1] - data[i-1][1]
-        dydx = dy/dx
-        temp = data[i-1],dydx
-        result.append(temp)
-    return result
-
-
-def get_second_derivative(firstDerivative):
-    result = []
-    for i in range(1,len(firstDerivative)):
-        d2y = firstDerivative[i][1] - firstDerivative[i-1][1]
-        dx2 = firstDerivative[i][0][0] - firstDerivative[i-1][0][0]
-        d2ydx2 = d2y / dx2
-        temp = firstDerivative[i-1][0],d2ydx2
-        result.append(temp)
-    return result
-
-def get_xi(firstDerivative):
+def get_xi(firstDerivative) -> float:
+    # get the lateral correlation height
+    # 1in: list;
     temp = []
     tempDxdy = []
     for i in range(3):
@@ -111,23 +110,14 @@ def get_xi(firstDerivative):
 
         if not (lowerBond <= dydx <= upperBond):
             break
-
         tempDxdy.append(dydx)
         temp.append(firstDerivative[i])
+
     return temp[-1][0][0]
 
-
-def log_scale_points(data):
-    result = []
-    for x,y in data:
-        if x*y == 0:
-            continue
-        x = math.log(x)
-        y = math.log(y)
-        result.append((x,y))
-    return result
-
 def find_alpha(logData):
+    # find the RMS height of the surface
+    # 1in: list; 2out: float, float
     logFirstDerivative = get_first_derivative(logData)
     tempy = []
     for i in range(3):
@@ -146,8 +136,9 @@ def find_alpha(logData):
 
     return avg,stdv
 
-def log_scale(data):
-
+def log_scale(data) -> list:
+    # helper function, log-scale a 1D array
+    # 1in: list;
     result = []
     for i in data:
         if i <= 0:
@@ -156,14 +147,9 @@ def log_scale(data):
         result.append(i)
     return result
 
-def HHCF(x,w,xi,alpha):
-    return 2*(w**2)*(1-np.exp(-(abs(x)/xi)**(2*alpha)))
-
-def path_leaf(path):
-    head, tail = ntpath.split(path)
-    return tail or ntpath.basename(head)
-
 def error_check(guesses,x_,y_):
+    # check the error of the guessed value
+    # 3in: tuple, list, list
     w,xi,alpha = guesses
     temp = (y_ - HHCF(x_, w, xi, alpha))**2
     temp *= (1000/(x_+1))
@@ -172,14 +158,61 @@ def error_check(guesses,x_,y_):
     fit_error.append(temp_err)
     return temp
 
-def log_scale_plot(x,y):
+def HHCF(x,w,xi,alpha):
+    # base function for fitting
+    return 2*(w**2)*(1-np.exp(-(abs(x)/xi)**(2*alpha)))
+
+def path_leaf(path):
+    # helper function, get filename
+    head, tail = ntpath.split(path)
+    return tail or ntpath.basename(head)
+
+def log_scale_plot(x,y) -> None:
+    # helper function, plot the graph in log scale without scaling the axis
+    # 2in: list; None returned
+    # NEEDS IMPROVEMENTS - axis scaling
     plt.plot(log_scale(x),log_scale(y))
 
+def get_first_derivative(data) -> list:
+    # helper function, find the first derivative of the data
+    # 1in: list;
+    result = []
+    for i in range(1,len(data)):
+        dx = data[i][0] - data[i-1][0]
+        dy = data[i][1] - data[i-1][1]
+        dydx = dy/dx
+        temp = data[i-1],dydx
+        result.append(temp)
+    return result
+
+
+def get_second_derivative(firstDerivative) -> list:
+    # helper function, find the second derivative of the data
+    # 1in: list;
+    result = []
+    for i in range(1,len(firstDerivative)):
+        d2y = firstDerivative[i][1] - firstDerivative[i-1][1]
+        dx2 = firstDerivative[i][0][0] - firstDerivative[i-1][0][0]
+        d2ydx2 = d2y / dx2
+        temp = firstDerivative[i-1][0],d2ydx2
+        result.append(temp)
+    return result
+
+def log_scale_points(data) -> list:
+    # helper function, re-map the points from data to a log scaled fashion
+    # 1in: list; 1out: list
+    result = []
+    for x,y in data:
+        if x*y == 0:
+            continue
+        x = math.log(x)
+        y = math.log(y)
+        result.append((x,y))
+    return result
 
 def main(filename):
     global fit_error
     fit_error = list()
-
 
     dataX, dataY, data = read_file(filename)
     data_raw = data.copy()
@@ -291,7 +324,7 @@ def main(filename):
 
 
 if __name__ == "__main__":
-    path = "C:\\Users\\J. Cheng\\Dropbox\\AFM_image\\0923_AFM"
+    path = input("File dir? => ")
     for pathname in glob.glob(os.path.join(path, '*.txt')):
         main(pathname)
 '''
@@ -364,8 +397,7 @@ if __name__ == "__main__":
     estY = np.array(estimateY)
 
     fit_error = np.array(fit_error)
-    bpath = "C:\\Users\\J. Cheng\\Dropbox\\AFM_image\\0923_AFM\\result"
-
+    
     plt.plot(x_raw, y_raw,label="observation")
     plt.plot(x_raw,estY,label = "model")
     plt.title("Heigh-Height Correlation Function")
